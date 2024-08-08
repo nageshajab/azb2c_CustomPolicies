@@ -3,8 +3,8 @@
     xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
     xmlns="http://schemas.microsoft.com/online/cpim/schemas/2013/06" 
     PolicySchemaVersion="0.3.0.0" TenantId="nageshadb2c.onmicrosoft.com" 
-    PolicyId="B2C_1A_ValidateUserInputPolicy" 
-    PublicPolicyUri="http://nageshadb2c.onmicrosoft.com/B2C_1A_ValidateUserInputPolicy">
+    PolicyId="B2C_1A_CreateBranchingInUserJourneyPolicy" 
+    PublicPolicyUri="http://nageshadb2c.onmicrosoft.com/B2C_1A_CreateBranchingInUserJourneyPolicy">
     
     <BuildingBlocks>
         <ClaimsSchema>
@@ -77,6 +77,18 @@
             </ClaimType>
             <ClaimType Id="domainStatus">
                 <DataType>string</DataType>
+            </ClaimType>
+            <ClaimType Id="accessCode">
+                <DisplayName>Access Code</DisplayName>
+                <DataType>string</DataType>
+                <UserHelpText>Enter your invitation access code.</UserHelpText>
+                <UserInputType>Password</UserInputType>
+                <Restriction>
+                    <Pattern RegularExpression="[0-9][0-9][0-9][0-9][0-9]" HelpText="Please enter your invitation access code. It's a 5-digit number, something like 95765"/>
+                </Restriction>
+            </ClaimType>
+            <ClaimType Id="isValidAccessCode">
+                <DataType>boolean</DataType>
             </ClaimType>
         </ClaimsSchema>
 
@@ -253,6 +265,30 @@
                     <OutputClaim ClaimTypeReferenceId="domainStatus" TransformationClaimType="outputClaim"/>
                 </OutputClaims>
             </ClaimsTransformation>
+
+            <!---<ClaimsTransformations>-->
+            <ClaimsTransformation Id="CheckIfIsValidAccessCode" TransformationMethod="CompareClaimToValue">
+                <InputClaims>
+                    <InputClaim ClaimTypeReferenceId="accessCode" TransformationClaimType="inputClaim1"/>
+                </InputClaims>
+                <InputParameters>
+                    <InputParameter Id="compareTo" DataType="string" Value="88888"/>
+                    <InputParameter Id="operator" DataType="string" Value="equal"/>
+                    <InputParameter Id="ignoreCase" DataType="string" Value="true"/>
+                </InputParameters>
+                <OutputClaims>
+                    <OutputClaim ClaimTypeReferenceId="isValidAccessCode" TransformationClaimType="outputClaim"/>
+                </OutputClaims>
+            </ClaimsTransformation>
+            <ClaimsTransformation Id="ThrowIfIsNotValidAccessCode" TransformationMethod="AssertBooleanClaimIsEqualToValue">
+                <InputClaims>
+                    <InputClaim ClaimTypeReferenceId="isValidAccessCode" TransformationClaimType="inputClaim"/>
+                </InputClaims>
+                <InputParameters>
+                    <InputParameter Id="valueToCompareTo" DataType="boolean" Value="true"/>
+                </InputParameters>
+            </ClaimsTransformation>
+    <!---</ClaimsTransformations>-->
         </ClaimsTransformations>
 
         <ContentDefinitions>
@@ -331,7 +367,6 @@
                     <DisplayClaims>
                         <DisplayClaim ClaimTypeReferenceId="givenName" Required="true"/>
                         <DisplayClaim ClaimTypeReferenceId="surname" Required="true"/>
-                        <DisplayClaim ClaimTypeReferenceId="accountType" Required="true"/>
                         <DisplayClaim ClaimTypeReferenceId="email" Required="true"/>
                         <DisplayClaim ClaimTypeReferenceId="password" Required="true"/>
                         <DisplayClaim ClaimTypeReferenceId="reenterPassword" Required="true"/>
@@ -339,7 +374,6 @@
                     <OutputClaims>
                         <OutputClaim ClaimTypeReferenceId="givenName"/>
                         <OutputClaim ClaimTypeReferenceId="surname"/>
-                        <OutputClaim ClaimTypeReferenceId="accountType"/>
                         <OutputClaim ClaimTypeReferenceId="email"/>
                         <OutputClaim ClaimTypeReferenceId="password"/>
                         <OutputClaim ClaimTypeReferenceId="reenterPassword"/>
@@ -373,22 +407,94 @@
 
             </TechnicalProfiles>
         </ClaimsProvider>
+
+        <!--<ClaimsProviders>-->
+        <ClaimsProvider>
+            <DisplayName>Technical Profiles to collect user's access code</DisplayName>
+            <TechnicalProfiles>
+                <TechnicalProfile Id="AccessCodeInputCollector">
+                    <DisplayName>Collect Access Code Input from user Technical Profile</DisplayName>
+                    <Protocol Name="Proprietary" Handler="Web.TPEngine.Providers.SelfAssertedAttributeProvider, Web.TPEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"/>
+                    <Metadata>
+                        <Item Key="ContentDefinitionReferenceId">SelfAssertedContentDefinition</Item>
+                        <Item Key="UserMessageIfClaimsTransformationBooleanValueIsNotEqual">The access code is invalid.</Item>
+                        <Item Key="ClaimTypeOnWhichToEnable">accountType</Item>
+                        <Item Key="ClaimValueOnWhichToEnable">personal</Item>
+                    </Metadata>
+                    <DisplayClaims>
+                        <DisplayClaim ClaimTypeReferenceId="accessCode" Required="true"/>
+                    </DisplayClaims>
+                    <OutputClaims>
+                        <OutputClaim ClaimTypeReferenceId="accessCode"/>
+                    </OutputClaims>
+                    <ValidationTechnicalProfiles>
+                        <ValidationTechnicalProfile ReferenceId="CheckAccessCodeViaClaimsTransformationChecker"/>
+                    </ValidationTechnicalProfiles>
+                    <EnabledForUserJourneys>OnClaimsExistence</EnabledForUserJourneys>
+                </TechnicalProfile>
+                <TechnicalProfile Id="CheckAccessCodeViaClaimsTransformationChecker">
+                    <DisplayName>A Claims Transformations to check user's access code validity</DisplayName>
+                    <Protocol Name="Proprietary" Handler="Web.TPEngine.Providers.ClaimsTransformationProtocolProvider, Web.TPEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"/>
+                    <OutputClaims>
+                        <OutputClaim ClaimTypeReferenceId="isValidAccessCode"/>
+                    </OutputClaims>
+                    <OutputClaimsTransformations>
+                        <OutputClaimsTransformation ReferenceId="CheckIfIsValidAccessCode"/>
+                        <OutputClaimsTransformation ReferenceId="ThrowIfIsNotValidAccessCode"/>
+                    </OutputClaimsTransformations>
+                </TechnicalProfile>
+            </TechnicalProfiles>
+        </ClaimsProvider>
+    <!--</ClaimsProviders>-->
+
+    <!--<ClaimsProviders>-->
+        <ClaimsProvider>
+            <DisplayName>Technical Profile to collect user's accountType</DisplayName>
+            <TechnicalProfiles>
+                <TechnicalProfile Id="AccountTypeInputCollector">
+                    <DisplayName>Collect User Input Technical Profile</DisplayName>
+                    <Protocol Name="Proprietary" Handler="Web.TPEngine.Providers.SelfAssertedAttributeProvider, Web.TPEngine, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null"/>
+                    <Metadata>
+                        <Item Key="ContentDefinitionReferenceId">SelfAssertedContentDefinition</Item>
+                    </Metadata>
+                    <DisplayClaims>
+                        <DisplayClaim ClaimTypeReferenceId="accountType" Required="true"/>
+                    </DisplayClaims>
+                    <OutputClaims>
+                        <OutputClaim ClaimTypeReferenceId="accountType"/>
+                    </OutputClaims>
+                </TechnicalProfile>
+            </TechnicalProfiles>
+        </ClaimsProvider>
+    <!--</ClaimsProviders>-->
     </ClaimsProviders>
 
     <UserJourneys>
         <UserJourney Id="HelloWorldJourney">
             <OrchestrationSteps>
+               <!--<OrchestrationSteps>-->
                 <OrchestrationStep Order="1" Type="ClaimsExchange">
                     <ClaimsExchanges>
-                        <ClaimsExchange Id="GetUserInformationClaimsExchange" TechnicalProfileReferenceId="UserInformationCollector"/>
+                        <ClaimsExchange Id="AccountTypeInputCollectorClaimsExchange" TechnicalProfileReferenceId="AccountTypeInputCollector"/>
                     </ClaimsExchanges>
                 </OrchestrationStep>
                 <OrchestrationStep Order="2" Type="ClaimsExchange">
                     <ClaimsExchanges>
+                        <ClaimsExchange Id="GetAccessCodeClaimsExchange" TechnicalProfileReferenceId="AccessCodeInputCollector" />
+                    </ClaimsExchanges>
+                    </OrchestrationStep>
+                <OrchestrationStep Order="3" Type="ClaimsExchange">
+                    <ClaimsExchanges>
+                        <ClaimsExchange Id="GetUserInformationClaimsExchange" TechnicalProfileReferenceId="UserInformationCollector"/>
+                    </ClaimsExchanges>
+                </OrchestrationStep>
+                <OrchestrationStep Order="4" Type="ClaimsExchange">
+                    <ClaimsExchanges>
                         <ClaimsExchange Id="GetMessageClaimsExchange" TechnicalProfileReferenceId="ClaimGenerator"/>
                     </ClaimsExchanges>
                 </OrchestrationStep>
-                <OrchestrationStep Order="3" Type="SendClaims" CpimIssuerTechnicalProfileReferenceId="JwtIssuer"/>
+                <OrchestrationStep Order="5" Type="SendClaims" CpimIssuerTechnicalProfileReferenceId="JwtIssuer"/>
+            <!--</OrchestrationSteps>-->
             </OrchestrationSteps>
         </UserJourney>
     </UserJourneys>
